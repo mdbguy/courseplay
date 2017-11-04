@@ -2093,6 +2093,8 @@ function courseplay:onAlignmentCourse( vehicle )
 	return vehicle.cp.alignment.savedWaypoints ~= nil
 end
 
+-- yet another change
+
 function courseplay:getAlignmentCourseWpChangeDistance( vehicle )
 	-- same for all vehicles for now
 	return 3
