@@ -2097,7 +2097,7 @@ function courseplay:getAlignmentCourseWpChangeDistance( vehicle )
 	-- same for all vehicles for now
 	return 3
 end
-
+--another change
 -- End the alignment course, restore the original course and continue on it.
 function courseplay:endAlignmentCourse( vehicle )
 	if courseplay:onAlignmentCourse( vehicle ) then
