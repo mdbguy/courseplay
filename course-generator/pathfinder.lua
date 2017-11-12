@@ -50,10 +50,9 @@ end
 local function isOnField( node )
   if courseGenerator.isRunningInGame() then
     if node.isOnField == nil then
-			local y = getTerrainHeightAtWorldPos( g_currentMission.terrainRootNode, node.x, 0, -node.y );
-      local densityBits = getDensityAtWorldPos( g_currentMission.terrainDetailId, node.x, y, node.z);
-      node.isOnField = densityBits ~= 0;
-	    courseGenerator.debug( string.format( "Island node found at %.1f, %.1f", node.x, -node.y ), 9)
+		local y = getTerrainHeightAtWorldPos( g_currentMission.terrainRootNode, node.x, 0, -node.y );
+      	local densityBits = getDensityAtWorldPos( g_currentMission.terrainDetailId, node.x, y, -node.y);
+      	node.isOnField = densityBits ~= 0
     end
   end
   return node.isOnField
@@ -71,16 +70,7 @@ local function defaultHasFruitFunc( node, width )
   return node.hasFruit
 end
 
-function pathFinder.findIslands( cpPolygon )
-  local grid, width = pathFinder.generateGridForPolygon( courseGenerator.pointsToXy( cpPolygon ))
-  for y, row in ipairs( grid.map ) do
-    for x, index in pairs( row ) do
-      isOnField( grid[ index ])
-    end
-  end
-end
-
-local function generateGridForPolygon( polygon )
+local function generateGridForPolygon( polygon, gridSpacingHint )
   local grid = {}
   -- map[ row ][ column ] maps the row/column address of the grid to a linear
   -- array index in the grid.
@@ -93,27 +83,26 @@ local function generateGridForPolygon( polygon )
   -- But don't go below a certain limit as that would drive too close to the fruite
   -- for this limit, use a fraction to reduce the chance of ending up right on the field edge (assuming fields
   -- are drawn using integer sizes) as that may result in a row or two missing in the grid
-  local width = math.max( 4.071, math.sqrt( polygon.area ) / 64 )
-  gridSpacing = width
-  local horizontalLines = generateParallelTracks( polygon, width )
+  gridSpacing = gridSpacingHint or math.max( 4.071, math.sqrt( polygon.area ) / 64 )
+  local horizontalLines = generateParallelTracks( polygon, gridSpacing )
   if not horizontalLines then return grid end
   -- we'll need this when trying to find the array index from the
   -- grid coordinates. All of these lines are the same length and start
   -- at the same x
-  grid.width = math.floor( horizontalLines[ 1 ].from.x / width )
+  grid.width = math.floor( horizontalLines[ 1 ].from.x / gridSpacing )
   grid.height = #horizontalLines
   -- now, add the grid points
-  local margin = width / 2
+  local margin = gridSpacing / 2
   for row, line in ipairs( horizontalLines ) do
     local column = 0
     grid.map[ row ] = {}
-    for x = line.from.x, line.to.x, width do
+    for x = line.from.x, line.to.x, gridSpacing do
       column = column + 1
       for j = 1, #line.intersections, 2 do
         if line.intersections[ j + 1 ] then
           if x > line.intersections[ j ].x + margin and x < line.intersections[ j + 1 ].x - margin then
             local y = line.from.y
-            -- check an area bigger than the width to make sure the path is not too close to the fruit
+            -- check an area bigger than the gridSpacing to make sure the path is not too close to the fruit
             table.insert( grid, { x = x, y = y, column = column, row = row })
             grid.map[ row ][ column ] = #grid
           end
@@ -121,18 +110,29 @@ local function generateGridForPolygon( polygon )
       end
     end
   end
-  return grid, width
+  return grid, gridSpacing
 end
 
-function pathFinder.findIslands( cpPolygon )
-	local grid, width = generateGridForPolygon( courseGenerator.pointsToXy( cpPolygon ))
-	for y, row in ipairs( grid.map ) do
-		for x, index in pairs( row ) do
-			isOnField( grid[ index ])
+function pathFinder.findIslands( polygon )
+	local islandFinderGridSpacing = 1
+	local grid, _ = generateGridForPolygon( polygon, islandFinderGridSpacing )
+	local islandNodes = {}
+	for _, row in ipairs( grid.map ) do
+		for _, index in pairs( row ) do
+			if not isOnField( grid[ index ]) then
+				-- add a node only if it is far enough from the field boundary
+				-- to filter false positives around the field boundary
+				local _, d = getClosestPointIndex( polygon, grid[ index ])
+				-- TODO: should calculate the closest distance to polygon edge, not 
+				-- the vertices. This may miss an island close enough to the field boundary
+				if d > 8 * islandFinderGridSpacing then
+					table.insert( islandNodes, grid[ index ])
+				end
+			end
 		end
 	end
+	return islandNodes
 end
-
 --- Is 'node' a valid neighbor of 'theNode'?
 --
 local function isValidNeighbor( theNode, node )
