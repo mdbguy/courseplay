@@ -127,11 +127,36 @@ function pathFinder.findIslands( polygon )
 				-- the vertices. This may miss an island close enough to the field boundary
 				if d > 8 * islandFinderGridSpacing then
 					table.insert( islandNodes, grid[ index ])
+					grid[ index ].island = true
 				end
 			end
 		end
 	end
-	return islandNodes
+	-- remove all nodes which have island nodes on all sides
+ 	-- so we end up with just the nodes on the perimeter of the islands
+    for _, node in ipairs( islandNodes ) do
+		node.islandNeighbors = 0
+		-- iterate over all neighbor nodes
+		for _, rowOffset in ipairs({ -1, 0, 1 }) do
+			for _, columnOffset in ipairs({ -1, 0, 1 }) do
+				-- skip own node
+				if rowOffset == 0 or columnOffset == 0 then
+					if grid.map[ node.row + rowOffset ] and grid.map[ node.row + rowOffset ][ node.column + columnOffset ] then
+						if grid[ grid.map[ node.row + rowOffset ][ node.column + columnOffset ]].island then 
+							node.islandNeighbors = node.islandNeighbors + 1
+						end
+					end
+				end
+			end
+		end
+	end
+	local islandPerimeterNodes = {}
+	for _, node in ipairs( islandNodes ) do
+			if node.islandNeighbors < 5 then
+			table.insert( islandPerimeterNodes, node )
+		end
+	end	
+	return islandPerimeterNodes
 end
 --- Is 'node' a valid neighbor of 'theNode'?
 --
